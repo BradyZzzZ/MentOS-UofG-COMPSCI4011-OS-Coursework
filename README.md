@@ -29,7 +29,7 @@
   - [Change the scheduling algorithm](#change-the-scheduling-algorithm)
   - [Debugging the kernel](#debugging-the-kernel)
   - [Contributors](#contributors)
-  - [For my Coursework](#for-my-coursework)
+- [For my Coursework](#for-my-coursework)
 
 ## What is MentOS
 
