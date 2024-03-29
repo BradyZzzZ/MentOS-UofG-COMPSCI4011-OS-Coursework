@@ -1,0 +1,382 @@
+Name: Bin Zhang
+Student ID: 2941833z
+
+Task 1:
+
+Overall explanation:
+
+In Task 1, I directly used the "get_cpuid()" function to capture cpuinfo, then passed the information directly to the buffer and output it to window.
+
+
+
+(a) For "proc_system.c":
+
+	1. Add "#include "hardware/cpuid.h"" at the top because the function "get_cpuid()" needs to be used in "procs_do_cpuinfo()".
+
+	2. Implement "procs_do_cpuinfo()" function
+
+	static ssize_t procs_do_cpuinfo(char *buffer, size_t bufsize)
+	{
+    		get_cpuid(&sinfo);
+    		sprintf(buffer,
+             		"Vendor ID: %s\n"
+             		"CPU Type: %s\n"
+             		"CPU Family: %u\n"
+             		"CPU Model: %u\n"
+             		"APIC ID: %u\n"
+             		"Brand String: %s\n",
+             		sinfo.cpu_vendor, sinfo.cpu_type, sinfo.cpu_family,
+             		sinfo.cpu_model, sinfo.apic_id, sinfo.brand_string);
+
+    		return 0;
+	}
+
+	Using "get_cpuid()" to obtain each CPU info and then use the "sprintf()" directly to pass them to buffer to let system output them to the window.
+
+
+###-----------------------------------------------------------------------------###
+
+
+Task 2:
+
+Overall explanation:
+
+In Task 2, I converted the calculation using fixed point and scaled the loadavg value in the middle. Finally, I calculated and converted the integer and decimal parts of fixed point separately to obtain the return loadavg value.
+
+
+
+(a) For "scheduler.h"
+
+	1. Define the required constants for fixed point arithmetic and load average calculation based on the provided materials.
+
+	#define FSHIFT 11              // Number of bits of precision
+	#define FIXED_1 (1<<FSHIFT)    // 1.0 as fixed-point
+	#define EXP_1 1884             // 1/exp(5sec/1min)
+	#define EXP_5 2014             // 1/exp(5sec/5min)
+	#define EXP_15 2037            // 1/exp(5sec/15min)
+	#define LOAD_FREQ (5 * TICKS_PER_SECOND)    //5s
+
+	According to the calculation method introduced in the material, use fixed point to assist in the calculation, set an appropriate attenuation formula, and update the loadavg value every five seconds.
+
+
+	2. Define the CALC_LOAD macro as provided in the material
+
+	#define CALC_LOAD(load, exp, n) \
+  	load *= exp; \
+  	load += n * (FIXED_1 - exp); \
+  	load >>= FSHIFT; 
+
+	Calculate the corresponding loadavg value from the converted fixed point value using CALC_LOAD.
+
+
+	3. Add a new variable "last_pid" into "runqueue_t" structure
+
+	typedef struct runqueue_t {
+    		/// Number of queued processes.
+    		size_t num_active;
+    		/// Number of queued periodic processes.
+    		size_t num_periodic;
+    		/// Queue of processes.
+    		list_head queue;
+    		/// The current running process.
+    		task_struct *curr;
+    		// * Task 2 : Add a var to get the most current pid
+    		pid_t last_pid;
+	} runqueue_t;
+
+	Using "last_pid" to track the latest PID value.
+
+
+	4. Put the new implemented functions in "scheduler.c" to its header file for using
+
+	// Updating the loadavg
+	void update_load_averages(size_t ticks);
+
+	// Get the loadavg number with fixed-point - 1 min
+	size_t scheduler_get_loadavg_1min(void);
+
+	// Get the loadavg number with fixed-point - 5 min
+	size_t scheduler_get_loadavg_5min(void);
+
+	// Get the loadavg number with fixed-point - 15 min
+	size_t scheduler_get_loadavg_15min(void);
+
+	// Get the total number of all processes
+	size_t scheduler_get_total_processes(void);
+
+	// Get the number of running processes
+	size_t scheduler_get_running_processes(void);
+
+	// Get the most recent process's PID
+	pid_t get_last_pid(void);
+
+
+
+(b) For "scheduler.c"
+
+	1. Add global variable for loadavg calculation
+
+	static size_t loadavg_1min = 0;
+	static size_t loadavg_5min = 0;
+	static size_t loadavg_15min = 0;
+
+
+	2. Initialization for tracking the most recent PID - Add a new instruction into "scheduler_initialize" function
+
+	void scheduler_initialize(void)
+	{
+    		// Initialize the runqueue list of tasks.
+    		list_head_init(&runqueue.queue);
+    		// Reset the current task.
+    		runqueue.curr = NULL;
+    		// Reset the number of active tasks.
+    		runqueue.num_active = 0;
+
+    		// * Task 2: Initialization for tracking the most recent PID
+    		runqueue.last_pid = 0;
+	}
+
+	Set "runqueue.last_pid" to 0 at initialization state and using it to track the latest process's PID.
+
+
+	3. Update the latest PID value - Add a new instruction into "scheduler_getpid" function
+
+	uint32_t scheduler_getpid(void)
+	{
+    		/// The current unused PID.
+    		static unsigned long int tid = 1;
+
+    		// * Task 2: Update the most recent pid
+    		runqueue.last_pid = tid;
+
+    		// Return the pid and increment.
+    		return tid++;
+	}
+
+	Let "runqueue.last_pid" equals to the latest used PID value when "scheduler_getpid" is called to get a new PID for future using.
+
+
+	4. Implement "update_load_averages()" function - For updating the loadavg
+
+	void update_load_averages(size_t ticks) {
+    		static int count = LOAD_FREQ;
+    		size_t active_tasks = scheduler_get_active_processes() * FIXED_1;
+    
+    		count -= ticks;
+    		if (count <= 0) {
+        		count += LOAD_FREQ;
+        		CALC_LOAD(loadavg_1min, EXP_1, active_tasks);
+        		CALC_LOAD(loadavg_5min, EXP_5, active_tasks);
+        		CALC_LOAD(loadavg_15min, EXP_15, active_tasks);
+    		}
+	}
+
+	Using LOAD_FREQ and ticks to ensure that the loadavg value is updated every five seconds based on the correspondence between tick and second. And calling CALC_LOAD to calculate loadavg for 3 different mins separately.
+
+
+	5. Implement 3 separately functions to return the loadavg value for 3 different mins.
+
+	// * Task 2: Get the loadavg number with fixed-point - 1 min
+	size_t scheduler_get_loadavg_1min(void) {
+    		return loadavg_1min;
+	}
+
+	// * Task 2: Get the loadavg number with fixed-point - 5 min
+	size_t scheduler_get_loadavg_5min(void) {
+    		return loadavg_5min;
+	}
+
+	// * Task 2: Get the loadavg number with fixed-point - 15 min
+	size_t scheduler_get_loadavg_15min(void) {
+    		return loadavg_15min;
+	}
+
+
+	6. Implement "scheduler_get_total_processes()" function -  For getting the total number of all processes
+
+	size_t scheduler_get_total_processes(void) {
+    		size_t total_tasks = 0;
+
+    		// Iterate over the task list to count the total number of tasks
+    		list_for_each_decl(it, &runqueue.queue) {
+        		total_tasks++;
+    		}
+
+   	 	return total_tasks;
+	}
+
+	Using the runqueue to count the total number of processes.
+
+
+	7. Implement "scheduler_get_running_processes()" function -  For getting the number of running processes
+
+	size_t scheduler_get_running_processes(void) {
+    		size_t running_tasks = 0;
+    		task_struct *task;
+
+    		// Iterate over the task list to count the number of running tasks
+    		list_for_each_decl(it, &runqueue.queue) {
+        		task = list_entry(it, task_struct, run_list);
+        		if (task->state == TASK_RUNNING) {
+            			running_tasks++;
+        		}
+    		}
+
+    		return running_tasks;
+	}
+
+	Checking the state for each process in runqueue and add the count variable "running_tasks" when the state match "TASK_RUNNING".
+
+
+	8. Implement "get_last_pid()" function - For returning the most recent process's PID
+
+	pid_t get_last_pid(void) {
+    		return runqueue.last_pid;
+	}
+
+
+
+(c) For "proc_system.c":
+
+	1. Add "#include "process/scheduler.h"" at the top because there are some new implemented functions that need to be used in "procs_do_loadavg()" which is also a new implemented function.
+
+
+	2. Define functions to calculate integer and decimal parts separately for loadavg
+
+	#define LOAD_INT(x) ((x) >> FSHIFT)                         // for integer part
+	#define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)    // for decimal parts (multiplying 100 to focus on the first two decimal number)
+
+
+	3. Declare the added "procs_do_loadavg()" function by "static ssize_t procs_do_loadavg(char *buffer, size_t bufsize);"
+
+
+	4. Read and deal with the "loadavg" command - Add a new instruction into "__procs_read()" function (Same as dealing with other command)
+
+	else if (strcmp(entry->name, "loadavg") == 0) {
+        	// * Task 2: Add a new function for loadavg
+        	ret = procs_do_loadavg(buffer, BUFSIZ); 
+    	}
+
+
+	5. Register the /proc/loadavg entry - Add a new instruction into "procs_module_init()" function (Same as dealing with other command entry)
+
+    	if ((system_entry = proc_create_entry("loadavg", NULL)) == NULL) {
+        	pr_err("Cannot create `/proc/loadavg`.\n");
+        	return 1;
+    	}
+    	pr_debug("Created `/proc/loadavg` (%p)\n", system_entry);
+    	// Set the specific operations for loadavg.
+    	system_entry->sys_operations = &procs_sys_operations;
+    	system_entry->fs_operations  = &procs_fs_operations;
+
+
+	6. Implement "procs_do_loadavg()" function - Pass the required info into buffer
+
+	static ssize_t procs_do_loadavg(char *buffer, size_t bufsize) 
+	{
+    		// Get the loadavg number with fixed-point and scaling
+    		size_t load1 = scheduler_get_loadavg_1min() * (FIXED_1/200);
+    		size_t load5 = scheduler_get_loadavg_5min()* (FIXED_1/200);
+    		size_t load15 = scheduler_get_loadavg_15min()* (FIXED_1/200);
+
+    		// Get the number of running processes and total processes
+    		int running_tasks = scheduler_get_running_processes();
+    		int total_tasks = scheduler_get_total_processes();
+
+    		// Get the last pid
+    		pid_t last_pid = get_last_pid();
+
+    		sprintf(buffer, "%d.%02d %d.%02d %d.%02d %d/%d %d\n",
+                       		LOAD_INT(load1), LOAD_FRAC(load1),
+                       		LOAD_INT(load5), LOAD_FRAC(load5),
+                       		LOAD_INT(load15), LOAD_FRAC(load15), 
+                       		running_tasks, total_tasks, last_pid);
+
+    		return 0;
+	}
+
+	Getting five different return value for "loadavg" command, and multiplying "(FIXED_1/200)" for each loadavg value calculated for each time period to do scaling to make values more readable.
+
+
+
+(d) For "timer.c":
+
+	1.Calling "update_load_averages()" function every tick based on its decaying counting logic to updating the loadavg value - Add an new instruction "update_load_averages(1);" into "timer_handler()"
+
+
+
+*** Note: After my checking, I believe that there is no problem with the overall logic of the code, but during runtime, an astonishing huge value may suddenly appear after a certain point in time, which may be an internal bug in MentOS. I believe that both converting to a fixed-point and scaling the value are consistent with the operating logic of regular Linux(Unix) systems.
+
+###-----------------------------------------------------------------------------###
+
+
+Task 3: 
+
+(a): Code for task 3 (And also update the "CMakeLists.txt" file with adding "observe.c")
+
+/// @file observe.c
+/// @brief `observe` program.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sys/unistd.h"
+#include "sys/types.h"
+#include "sys/wait.h"
+#include "system/syscall_types.h"
+#include <time.h>
+#include <signal.h>
+
+int main(int argc, char **argv) {
+
+    // Check command-line arguments.
+    if (argc < 2) {
+        printf("%s: missing operand.\n", argv[0]);
+        printf("Try '%s --help' for more information.\n\n", argv[0]);
+        return 1;
+    }
+
+    // Check if `--help` is provided.
+    for (int i = 1; i < argc; ++i) {
+        if ((strcmp(argv[i], "--help") == 0) || (strcmp(argv[i], "-h") == 0)) {
+            printf("Observe executes a command repeatedly, displaying the output.\n");
+            printf("Usage:\n");
+            printf("    observe <command>\n");
+            return 0;
+        }
+    }
+
+    // Main loop to execute the command every 2 seconds
+    while (1) {
+
+        pid_t cpid = fork();
+
+        if (cpid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
+
+        if (cpid == 0) {
+            // Makes the new process a group leader
+            pid_t pid = getpid();
+            setpgid(cpid, pid);
+
+            if (execvp(argv[1], &argv[1]) == -1) {
+                printf("\nUnknown command: %s\n", argv[1]);
+                exit(EXIT_FAILURE);
+            }
+        }
+        
+        sleep(2);
+    }
+
+    return 0;
+}
+
+
+
+(b) Overall explanation
+
+Although the "execvp(command,&argv[1])" instruction cannot run properly on my Mac(M1) laptop, the overall logic of the code seems to be fine.
+
+Its overall logic runs through "fork()" and a while-infinite-loops, and using "sleep(2)" to set the interval to 2 seconds.

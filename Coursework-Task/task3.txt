@@ -1,0 +1,42 @@
+Name: Bin Zhang
+Student ID: 2941833z
+
+For Task 3:
+
+1. Thinking process
+
+	For Task 3, my first thought was to create a file just like "cat.c" in the "program" folder to run the observe program, so I created the new file and started implementing the main function. Then I started with the detection of the number of command line arguments and the provision of "--help", just like in "cat.c". After that I try to deal with the while-infinite-loop to run the specified command in a loop. I use "fork()" to fork the process to run with loop, and I check if the fork program is successful. Then I get the new PID and set to the process. After that, I use "execvp(argv[1], &argv[1])" to run the command each time (Note: although it may not run properly on my Mac, I believe that it should be correct in both logic and code format). Finally, I use "sleep(2)" to ensure that the command only runs every two seconds.
+
+
+2. My observation
+
+	I have found that "fork()" is very powerful, but at the same time, it is important to check whether the fork is successful. Similarly, when running a specified command with "execvp()", it is also important to pay attention to whether the parameters passed in match with the function definition. Additionally, Control+C cannot be directly used to terminate programs in MentOS, and additional code may be required to implement this feature
+
+
+3. Comments(Notes)
+
+	while (1) {
+
+        	pid_t cpid = fork();
+
+        	if (cpid == -1) {
+            		perror("fork");
+            		exit(EXIT_FAILURE);
+        	}
+
+        	if (cpid == 0) {
+            		// Makes the new process a group leader
+            		pid_t pid = getpid();
+            		setpgid(cpid, pid);
+
+            		if (execvp(argv[1], &argv[1]) == -1) {
+                		printf("\nUnknown command: %s\n", argv[1]);
+                		exit(EXIT_FAILURE);
+            		}
+        	}
+        
+        	sleep(2);
+    	}
+
+
+	For this part of the while-infinite-loop, I thinl there are no bugs, but "execvp(argv[1] ,&argv[1])" does not run properly on my Mac (it keeps printing "Unknown command:" instead of running the command), and I don't know why.
