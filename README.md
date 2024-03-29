@@ -475,8 +475,8 @@ Developers:
 
 This course assignment has three tasks:
 
-  - Task 1: Implement "cat /proc/cpuinfo" command
-  - Task 2: Implement "cat /proc/loadavg" command
-  - Task 3: Implement "observe" command to continue run one command for observing
+  - Task 1: Implement *"cat /proc/cpuinfo"* command
+  - Task 2: Implement *"cat /proc/loadavg"* command
+  - Task 3: Implement *"observe"* command to continue run one command for observing
   
 *[Back to the Table of Contents](#table-of-contents)*
