@@ -1,4 +1,4 @@
-# MentOS-UofG-COMPSCI4011-OS-Coursework
+# MentOS for UofG COMPSCI4011 OS Coursework - Year 3 undergraduate exchange student 
 
 # MentOS (Mentoring Operating System)
 
